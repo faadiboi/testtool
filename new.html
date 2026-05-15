@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PHANTOM QUALITY TOOL</title>
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <script>
+    /* * Built-in idb-keyval library for Disk-Backed Storage
+     */
+    const idbKeyval = (() => {
+      'use strict';
+      class Store {
+        constructor(dbName = 'keyval-store', storeName = 'keyval') {
+          this.storeName = storeName;
+          this._dbp = new Promise((resolve, reject) => {
+            const openreq = indexedDB.open(dbName, 1);
+            openreq.onerror = () => reject(openreq.error);
+            openreq.onsuccess = () => resolve(openreq.result);
+            openreq.onupgradeneeded = () => openreq.result.createObjectStore(storeName);
+          });
+        }
+        _withIDBStore(type, callback) {
+          return this._dbp.then(db => new Promise((resolve, reject) => {
+            const transaction = db.transaction(this.storeName, type);
+            transaction.oncomplete = () => resolve();
+            transaction.onabort = transaction.onerror = () => reject(transaction.error);
+            callback(transaction.objectStore(this.storeName));
+          }));
+        }
+      }
+      let defaultGetStore;
+      function getStore() { return defaultGetStore || (defaultGetStore = new Store()); }
+      return {
+        get: (key, store = getStore()) => {
+          let req;
+          return store._withIDBStore('readonly', s => { req = s.get(key); }).then(() => req.result);
+        },
+        set: (key, value, store = getStore()) => {
+          return store._withIDBStore('readwrite', s => { s.put(value, key); });
+        }
+      };
+    })();
+    </script>
+
+    <style>
+        :root {
+            --bg-color: #020406;
+            --liquid-glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --neon-blue: #00f2ff;
+            --neon-green: #00ffaa;
+            --text-main: #ffffff;
+            --text-dim: rgba(255, 255, 255, 0.6);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(0, 242, 255, 0.08) 0%, transparent 45%),
+                radial-gradient(circle at 85% 85%, rgba(0, 255, 170, 0.08) 0%, transparent 45%);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .liquid-card {
+            background: var(--liquid-glass);
+            backdrop-filter: blur(40px) saturate(200%) brightness(120%);
+            -webkit-backdrop-filter: blur(40px) saturate(200%) brightness(120%);
+            border: 1px solid var(--glass-border);
+            border-radius: 45px; 
+            padding: 35px 25px;
+            width: 100%;
+            max-width: 350px;
+            text-align: center;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.1);
+            box-sizing: border-box;
+        }
+
+        h2 {
+            font-family: 'Exo 2', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-style: italic;
+            background: linear-gradient(135deg, var(--neon-blue), var(--neon-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0 auto 8px auto;
+            padding-right: 12px;
+            overflow: visible;
+            display: block;
+            width: fit-content;
+            white-space: nowrap;
+        }
+
+        .subtitle { 
+            color: var(--text-dim); 
+            font-size: 0.75rem; 
+            margin-bottom: 25px; 
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .pill-btn {
+            width: 100%;
+            padding: 16px;
+            border-radius: 100px;
+            border: none;
+            background: rgba(255, 255, 255, 0.95);
+            color: #000;
+            font-family: 'Exo 2', sans-serif;
+            font-weight: 800;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            margin-bottom: 10px;
+        }
+
+        .pill-btn:active { transform: scale(0.95); }
+
+        .btn-reset {
+            background: rgba(255, 59, 48, 0.15) !important;
+            color: #ff3b30 !important;
+            border: 1px solid rgba(255, 59, 48, 0.3) !important;
+            font-size: 0.75rem !important;
+            padding: 12px !important;
+        }
+
+        .file-box {
+            background: rgba(0, 242, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            border-radius: 25px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] { color: var(--text-dim); font-size: 0.7rem; width: 100%; }
+
+        .credits-footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .made-with {
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            margin-bottom: 15px;
+        }
+
+        .social-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .social-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-decoration: none;
+            width: fit-content;
+            padding: 5px 15px;
+            border-radius: 50px;
+            transition: 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+
+        .social-item i { 
+            font-size: 1.4rem; 
+            width: 25px;
+            text-align: center;
+        }
+
+        .fa-tiktok { color: #ffffff; }
+        .fa-instagram { color: #ff006a; }
+
+        .social-username {
+            font-family: 'Exo 2', sans-serif;
+            color: var(--text-main);
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .social-item:hover { 
+            transform: translateY(-3px) scale(1.05); 
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .social-item:active { 
+            transform: scale(0.95); 
+            transition: 0.1s ease;
+        }
+
+        #status { margin-top: 12px; font-size: 0.7rem; font-weight: 700; height: 14px; }
+        .success { color: var(--neon-green); }
+        .error { color: #ff3b30; }
+
+        #app-content { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="auth-screen">
+        <div class="liquid-card">
+            <h2>SECURITY CHECK</h2>
+            <p id="auth-msg" class="subtitle">PHANTOM QUALITY TOOL</p>
+            <button class="pill-btn" onclick="checkAccess()">ACTIVATE LICENSE</button>
+            
+            <div class="credits-footer">
+                <div class="made-with">MADE WITH ❤️ BY.</div>
+                <div class="social-container">
+                    <a href="https://www.tiktok.com/@faadiboii" target="_blank" class="social-item">
+                        <i class="fab fa-tiktok"></i>
+                        <span class="social-username">@faadiboii</span>
+                    </a>
+                    <a href="https://www.instagram.com/faadiboii" target="_blank" class="social-item">
+                        <i class="fab fa-instagram"></i>
+                        <span class="social-username">@faadiboii</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-content">
+        <div class="liquid-card">
+            <h2>PHANTOM QUALITY TOOL</h2>
+            <p class="subtitle">BINARY METADATA OPTIMIZER</p>
+            <div class="file-box"><input type="file" id="fileInput" accept="video/mp4,video/quicktime,.mov,.MOV"></div>
+            <button id="patchBtn" class="pill-btn" onclick="patchVideo()">PATCH & DOWNLOAD</button>
+            <button class="pill-btn btn-reset" onclick="clearToolStorage()">RESET STORAGE</button>
+            <div id="status"></div>
+
+            <div class="credits-footer">
+                <div class="made-with">MADE WITH ❤️ BY.</div>
+                <div class="social-container">
+                    <a href="https://www.tiktok.com/@faadiboii" target="_blank" class="social-item">
+                        <i class="fab fa-tiktok"></i>
+                        <span class="social-username">@faadiboii</span>
+                    </a>
+                    <a href="https://www.instagram.com/faadiboii" target="_blank" class="social-item">
+                        <i class="fab fa-instagram"></i>
+                        <span class="social-username">@faadiboii</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrTSY-gzGmHcVl0G4pkW2LxWNQBgUQmNn9ww18ApL_C0xjUgqLMi5RpcD40eUBKEmVZA/exec";
+
+    async function checkAccess() {
+        const userKey = prompt("Enter License Key:");
+        if (!userKey) return;
+        const authMsg = document.getElementById('auth-msg');
+        authMsg.innerText = "Verifying Identity...";
+        authMsg.style.color = "#00f2ff";
+        const fingerprint = navigator.userAgent + window.screen.width + window.screen.height + navigator.language;
+        try {
+            const response = await fetch(`${GOOGLE_SCRIPT_URL}?key=${encodeURIComponent(userKey)}&info=${encodeURIComponent(fingerprint)}`);
+            const result = await response.json();
+            if (result.authorized) {
+                document.getElementById('auth-screen').style.display = "none";
+                document.getElementById('app-content').style.display = "block";
+                localStorage.setItem('phantom_key', userKey);
+            } else { 
+                alert(result.message || "Invalid Key!"); 
+                authMsg.innerText = "PHANTOM QUALITY TOOL";
+                authMsg.style.color = "rgba(255, 255, 255, 0.6)";
+            }
+        } catch (err) { alert("Connection Error."); }
+    }
+
+    async function clearToolStorage() {
+        if(!confirm("Wipe all cached video data?")) return;
+        try {
+            showStatus("Wiping...", "success");
+            await idbKeyval.set('last_patched_video', null);
+            const DBDeleteRequest = indexedDB.deleteDatabase("keyval-store");
+            DBDeleteRequest.onsuccess = () => {
+                showStatus("Cleaned!", "success");
+                setTimeout(() => location.reload(), 600);
+            };
+        } catch (e) { showStatus("Reset Error", "error"); }
+    }
+
+    async function patchVideo() {
+        const fileInput = document.getElementById('fileInput');
+        if (!fileInput.files[0]) { showStatus("Select file", "error"); return; }
+        
+        const file = fileInput.files[0];
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+        const outputName = baseName + "_patched.mp4";
+
+        showStatus("Allocating RAM...", "success");
+
+        try {
+            const chunkSize = 8 * 1024 * 1024; // 8MB Chunks for maximum stability
+            const totalChunks = Math.ceil(file.size / chunkSize);
+            let patchedChunks = [];
+
+            for (let i = 0; i < totalChunks; i++) {
+                const start = i * chunkSize;
+                const end = Math.min(start + chunkSize, file.size);
+                
+                const slice = file.slice(start, end);
+                const arrayBuffer = await slice.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                const view = new DataView(arrayBuffer);
+
+                const atoms = ["mvhd", "mdhd"];
+                atoms.forEach(atom => {
+                    const atomBytes = new TextEncoder().encode(atom);
+                    for (let j = 0; j < data.length - 4; j++) {
+                        if (data[j] === atomBytes[0] && data[j+1] === atomBytes[1] && 
+                            data[j+2] === atomBytes[2] && data[j+3] === atomBytes[3]) {
+                            const hdr = j - 4;
+                            const version = data[hdr + 8];
+                            const tsOff = (version === 0) ? hdr + 20 : hdr + 28;
+                            if (tsOff + 4 <= data.length) {
+                                const oldTs = view.getUint32(tsOff, false);
+                                view.setUint32(tsOff, Math.floor(oldTs * (30.0/60.0)), false);
+                            }
+                        }
+                    }
+                });
+
+                patchedChunks.push(new Blob([view]));
+                if (i % 2 === 0) showStatus(`Patching: ${Math.round((i/totalChunks)*100)}%`, "success");
+                if (i % 10 === 0) await new Promise(r => setTimeout(r, 1));
+            }
+
+            showStatus("Finalizing (1.1GB+)...", "success");
+            const finalBlob = new Blob(patchedChunks, { type: "video/mp4" });
+            patchedChunks = []; 
+
+            await idbKeyval.set('last_patched_video', finalBlob);
+
+            const url = URL.createObjectURL(finalBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = outputName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            showStatus("DONE!", "success");
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+        } catch (e) {
+            console.error(e);
+            if (e.name === "QuotaExceededError") showStatus("Disk Full! Use RESET.", "error");
+            else showStatus("Memory Error", "error");
+        }
+    }
+
+    function showStatus(text, className) {
+        const s = document.getElementById('status');
+        s.innerText = text; s.className = className;
+    }
+</script>
+</body>
+</html>
