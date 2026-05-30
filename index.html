@@ -176,6 +176,7 @@
     <div id="app-content"></div>
 
 <script>
+    // Paste your updated deployment web app URL here
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrTSY-gzGmHcVl0G4pkW2LxWNQBgUQmNn9ww18ApL_C0xjUgqLMi5RpcD40eUBKEmVZA/exec";
     const HARDCODED_PASS = "PhantomSecureCoreEngineV2026";
 
@@ -204,7 +205,7 @@
         const fingerprint = navigator.userAgent + window.screen.width + window.screen.height + navigator.language;
         
         try {
-            const response = await fetch(`${GOOGLE_SCRIPT_URL}?key=${encodeURIComponent(licenseKey)}&info=${encodeURIComponent(fingerprint)}`);
+            const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=verify&key=${encodeURIComponent(licenseKey)}&info=${encodeURIComponent(fingerprint)}`);
             const result = await response.json();
 
             if (result.authorized) {
@@ -230,6 +231,8 @@
                 const clearBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBytes, tagLength: 128 }, decryptionKey, combinedPayload);
                 let clearTextScript = new TextDecoder().decode(clearBuffer);
 
+                // Save active validation parameter back into memory namespace for the patch loop
+                localStorage.setItem('phantom_key', licenseKey);
                 document.getElementById('auth-screen').remove();
 
                 const bootstrapper = new Function(clearTextScript);
@@ -244,6 +247,7 @@
                 }
             }
         } catch (err) {
+            console.error(err);
             alert("Security Handshake or Decryption Failed.");
             if(authMsg) {
                 authMsg.innerText = "ACCESS REFUSED";
