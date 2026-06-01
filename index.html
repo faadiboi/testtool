@@ -189,14 +189,20 @@
             
             <div class="file-box"><input type="file" id="fileInput" accept="video/mp4,video/quicktime,.mov,.MOV"></div>
             
-            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--glass-border); border-radius: 20px; margin-bottom: 20px; text-align: left; overflow: hidden;">
+           <!-- HARDWARE-ACCELERATED LIQUID DROPDOWN TOGGLE -->
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--glass-border); border-radius: 20px; margin-bottom: 20px; text-align: left; overflow: hidden; display: grid; grid-template-rows: auto 0fr; transition: grid-template-rows 0.4s cubic-bezier(0.25, 1, 0.5, 1);">
+                
+                <!-- HEADER (ALWAYS VISIBLE) -->
                 <button id="toggleGuideBtn" style="width: 100%; background: none; border: none; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; color: var(--text-main); font-family: 'Exo 2', sans-serif; font-size: 0.75rem; font-weight: 800; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; outline: none;">
                     <span><i class="fa-solid fa-circle-info" style="color: var(--neon-blue); margin-right: 8px;"></i> Processing Guidelines</span>
-                    <i id="guideChevron" class="fa-solid fa-chevron-down" style="transition: transform 0.3s ease; color: var(--text-dim);"></i>
+                    <i id="guideChevron" class="fa-solid fa-chevron-down" style="transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); color: var(--text-dim);"></i>
                 </button>
-                <div id="guideContent" style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; background: rgba(0,0,0,0.2);">
-                    <div style="padding: 0 20px 18px 20px; font-size: 0.7rem; color: var(--text-dim); line-height: 1.5; display: flex; flex-direction: column; gap: 10px;">
-                        <div style="display: flex; align-items: flex-start; gap: 8px;">
+                
+                <!-- CONTENT WRAPPER (ANIMATED TRACK) -->
+                <div style="overflow: hidden; background: rgba(0,0,0,0.2);">
+                    <!-- INNER CONTENT (HOLDS SIZE FOR THE GRID) -->
+                    <div id="guideContent" style="padding: 0 20px 18px 20px; font-size: 0.7rem; color: var(--text-dim); line-height: 1.5; display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; align-items: flex-start; gap: 8px; margin-top: 5px;">
                             <i class="fa-solid fa-circle-check" style="color: var(--neon-green); margin-top: 2px;"></i>
                             <span><strong>Optimal Performance:</strong> To ensure quick processing, it is recommended that video files remain below <b>300MB</b>. Please <b>Reset Storage</b> before patching any video.</span>
                         </div>
