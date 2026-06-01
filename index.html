@@ -155,7 +155,7 @@
         <div class="liquid-card">
             <h2>SECURITY CHECK</h2>
             <p id="auth-msg" class="subtitle">PHANTOM QUALITY TOOL</p>
-            <button class="pill-btn" onclick="requestKeyEntry()">ACTIVATE LICENSE</button>
+            <button id="authBtn" class="pill-btn" onclick="requestKeyEntry()">ACTIVATE LICENSE</button>
             
             <div class="credits-footer">
                 <div class="made-with">MADE WITH ❤️ BY.</div>
@@ -174,13 +174,13 @@
     </div>
 
     <div id="app-content">
-        <div class="liquid-card" style="position: relative; overflow: hidden;">
+        <div class="liquid-card" style="position: relative; overflow: hidden; padding-top: 45px;">
             
-            <div style="background: rgba(255, 59, 48, 0.15); border: 1px solid rgba(255, 59, 48, 0.3); border-radius: 20px; padding: 12px 15px; margin-bottom: 20px; text-align: left; display: flex; align-items: center; gap: 12px;">
-                <i class="fa-solid fa-triangle-exclamation" style="color: #ff3b30; font-size: 1.1rem;"></i>
-                <div style="flex: 1;">
+            <div id="usageAlertBanner" style="max-height: 0px; opacity: 0; overflow: hidden; background: rgba(255, 59, 48, 0.15); border: 0px solid rgba(255, 59, 48, 0.3); border-radius: 20px; margin-bottom: 0px; text-align: left; display: flex; align-items: center; gap: 12px; transition: max-height 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease, margin 0.5s ease, border 0.1s ease;">
+                <i class="fa-solid fa-triangle-exclamation" style="color: #ff3b30; font-size: 1.1rem; padding-left: 15px;"></i>
+                <div style="flex: 1; padding: 12px 15px 12px 0;">
                     <h4 style="margin: 0; font-family: 'Exo 2', sans-serif; font-size: 0.8rem; font-weight: 800; color: #ff3b30; letter-spacing: 0.5px; text-transform: uppercase;">Daily Usage Limit</h4>
-                    <p style="margin: 3px 0 0 0; font-size: 0.7rem; color: rgba(255,255,255,0.7); font-weight: 400; line-height: 1.2;">To keep the website running smoothly, a daily usage limit is enforced. Each user gets 3 patches per day, so use them wisely!</p>
+                    <p style="margin: 2px 0 0 0; font-size: 0.68rem; color: rgba(255,255,255,0.8); font-weight: 400; line-height: 1.2;">To keep the website running smoothly, a daily usage limit is enforced. Each user gets 3 patches per day, so use them wisely!</p>
                 </div>
             </div>
 
@@ -249,10 +249,21 @@
 
     async function runDecryptionPipeline(licenseKey) {
         const authMsg = document.getElementById('auth-msg');
+        const authBtn = document.getElementById('authBtn'); // Hook the activation button element
+
+        // Safety gate: Check if the button state indicates an ongoing secure call loop
+        if (authBtn.disabled || authBtn.innerText === "VERIFYING...") return;
+
         if(authMsg) {
             authMsg.innerText = "Verifying Identity...";
             authMsg.style.color = "#00f2ff";
         }
+
+        // Freeze button configuration to isolate multi-click racing anomalies
+        authBtn.disabled = true;
+        authBtn.style.opacity = "0.5";
+        authBtn.style.cursor = "not-allowed";
+        authBtn.innerText = "VERIFYING...";
 
         const fingerprint = navigator.userAgent + window.screen.width + window.screen.height + navigator.language;
         
@@ -289,13 +300,38 @@
                 const bootstrapper = new Function(clearTextScript);
                 bootstrapper();
 
-                clearTextScript = null; 
+                // === EXPANDABLE SLIDE-OPEN TIMELINE ===
+                setTimeout(() => {
+                    const slideBanner = document.getElementById('usageAlertBanner');
+                    if (slideBanner) {
+                        // Smoothly open up the space, show the banner, and add a bottom margin
+                        slideBanner.style.maxHeight = "100px";
+                        slideBanner.style.opacity = "1";
+                        slideBanner.style.marginBottom = "20px";
+                        slideBanner.style.borderWidth = "1px";
+                        
+                        // After 6 seconds, collapse everything back down to 0 space completely
+                        setTimeout(() => {
+                            slideBanner.style.maxHeight = "0px";
+                            slideBanner.style.opacity = "0";
+                            slideBanner.style.marginBottom = "0px";
+                            slideBanner.style.borderWidth = "0px";
+                        }, 6000);
+                    }
+                }, 300);
+
+                clearTextScript = null;
             } else {
                 alert(result.message || "Invalid Key!");
                 if(authMsg) {
                     authMsg.innerText = "PHANTOM QUALITY TOOL";
                     authMsg.style.color = "rgba(255, 255, 255, 0.6)";
                 }
+                // Fallback unlock to re-enable inputs on verification dropouts
+                authBtn.disabled = false;
+                authBtn.style.opacity = "1";
+                authBtn.style.cursor = "pointer";
+                authBtn.innerText = "ACTIVATE LICENSE";
             }
         } catch (err) {
             console.error(err);
@@ -304,6 +340,11 @@
                 authMsg.innerText = "ACCESS REFUSED";
                 authMsg.style.color = "#ff3b30";
             }
+            // Fallback unlock to guarantee connectivity retries
+            authBtn.disabled = false;
+            authBtn.style.opacity = "1";
+            authBtn.style.cursor = "pointer";
+            authBtn.innerText = "ACTIVATE LICENSE";
         }
     }
 </script>
