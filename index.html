@@ -173,10 +173,62 @@
         </div>
     </div>
 
-    <div id="app-content"></div>
+    <div id="app-content">
+        <div class="liquid-card" style="position: relative; overflow: hidden;">
+            
+            <div style="background: rgba(255, 59, 48, 0.15); border: 1px solid rgba(255, 59, 48, 0.3); border-radius: 20px; padding: 12px 15px; margin-bottom: 20px; text-align: left; display: flex; align-items: center; gap: 12px;">
+                <i class="fa-solid fa-triangle-exclamation" style="color: #ff3b30; font-size: 1.1rem;"></i>
+                <div style="flex: 1;">
+                    <h4 style="margin: 0; font-family: 'Exo 2', sans-serif; font-size: 0.8rem; font-weight: 800; color: #ff3b30; letter-spacing: 0.5px; text-transform: uppercase;">Daily Usage Limit</h4>
+                    <p style="margin: 3px 0 0 0; font-size: 0.7rem; color: rgba(255,255,255,0.7); font-weight: 400; line-height: 1.2;">To keep the website running smoothly, a daily usage limit is enforced. Each user gets 3 patches per day, so use them wisely!</p>
+                </div>
+            </div>
+
+            <h2>PHANTOM QUALITY TOOL</h2>
+            <p class="subtitle">BINARY METADATA OPTIMIZER</p>
+            
+            <div class="file-box"><input type="file" id="fileInput" accept="video/mp4,video/quicktime,.mov,.MOV"></div>
+            
+            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--glass-border); border-radius: 20px; margin-bottom: 20px; text-align: left; overflow: hidden;">
+                <button id="toggleGuideBtn" style="width: 100%; background: none; border: none; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; color: var(--text-main); font-family: 'Exo 2', sans-serif; font-size: 0.75rem; font-weight: 800; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; outline: none;">
+                    <span><i class="fa-solid fa-circle-info" style="color: var(--neon-blue); margin-right: 8px;"></i> Processing Guidelines</span>
+                    <i id="guideChevron" class="fa-solid fa-chevron-down" style="transition: transform 0.3s ease; color: var(--text-dim);"></i>
+                </button>
+                <div id="guideContent" style="max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; background: rgba(0,0,0,0.2);">
+                    <div style="padding: 0 20px 18px 20px; font-size: 0.7rem; color: var(--text-dim); line-height: 1.5; display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; align-items: flex-start; gap: 8px;">
+                            <i class="fa-solid fa-circle-check" style="color: var(--neon-green); margin-top: 2px;"></i>
+                            <span><strong>Optimal Performance:</strong> To ensure quick processing, it is recommended that video files remain below <b>300MB</b>. Please <b>Reset Storage</b> before patching any video.</span>
+                        </div>
+                        <div style="display: flex; align-items: flex-start; gap: 8px;">
+                            <i class="fa-solid fa-clock" style="color: var(--neon-blue); margin-top: 2px;"></i>
+                            <span><strong>Heavy Media Files (1GB+):</strong> If the file is larger than 1 GB, processing may take longer. Please stay on this page and wait <b>2–3 minutes</b> for it to load properly.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="patchBtn" class="pill-btn">PATCH & DOWNLOAD</button>
+            <button id="resetBtn" class="pill-btn btn-reset">RESET STORAGE</button>
+            <div id="status"></div>
+
+            <div class="credits-footer">
+                <div class="made-with">MADE WITH ❤️ BY.</div>
+                <div class="social-container">
+                    <a href="https://www.tiktok.com/@faadiboii" target="_blank" class="social-item">
+                        <i class="fab fa-tiktok"></i>
+                        <span class="social-username">@faadiboii</span>
+                    </a>
+                    <a href="https://www.instagram.com/faadiboii" target="_blank" class="social-item">
+                        <i class="fab fa-instagram"></i>
+                        <span class="social-username">@faadiboii</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
 
 <script>
-    // Paste your updated deployment web app URL here
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrTSY-gzGmHcVl0G4pkW2LxWNQBgUQmNn9ww18ApL_C0xjUgqLMi5RpcD40eUBKEmVZA/exec";
     const HARDCODED_PASS = "PhantomSecureCoreEngineV2026";
 
@@ -231,7 +283,6 @@
                 const clearBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBytes, tagLength: 128 }, decryptionKey, combinedPayload);
                 let clearTextScript = new TextDecoder().decode(clearBuffer);
 
-                // Save active validation parameter back into memory namespace for the patch loop
                 localStorage.setItem('phantom_key', licenseKey);
                 document.getElementById('auth-screen').remove();
 
