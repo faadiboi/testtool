@@ -193,18 +193,14 @@
             
             <div class="file-box"><input type="file" id="fileInput" accept="video/mp4,video/quicktime,.mov,.MOV"></div>
             
-           <!-- HARDWARE-ACCELERATED LIQUID DROPDOWN TOGGLE -->
-            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--glass-border); border-radius: 20px; margin-bottom: 20px; text-align: left; overflow: hidden; display: grid; grid-template-rows: auto 0fr; transition: grid-template-rows 0.4s cubic-bezier(0.25, 1, 0.5, 1);">
+           <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--glass-border); border-radius: 20px; margin-bottom: 20px; text-align: left; overflow: hidden; display: grid; grid-template-rows: auto 0fr; transition: grid-template-rows 0.4s cubic-bezier(0.25, 1, 0.5, 1);">
                 
-                <!-- HEADER (ALWAYS VISIBLE) -->
                 <button id="toggleGuideBtn" style="width: 100%; background: none; border: none; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; color: var(--text-main); font-family: 'Exo 2', sans-serif; font-size: 0.75rem; font-weight: 800; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; outline: none;">
                     <span><i class="fa-solid fa-circle-info" style="color: var(--neon-blue); margin-right: 8px;"></i> Processing Guidelines</span>
                     <i id="guideChevron" class="fa-solid fa-chevron-down" style="transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); color: var(--text-dim);"></i>
                 </button>
                 
-                <!-- CONTENT WRAPPER (ANIMATED TRACK) -->
                 <div style="overflow: hidden; background: rgba(0,0,0,0.2);">
-                    <!-- INNER CONTENT (HOLDS SIZE FOR THE GRID) -->
                     <div id="guideContent" style="padding: 0 20px 18px 20px; font-size: 0.7rem; color: var(--text-dim); line-height: 1.5; display: flex; flex-direction: column; gap: 10px;">
                         <div style="display: flex; align-items: flex-start; gap: 8px; margin-top: 5px;">
                             <i class="fa-solid fa-circle-check" style="color: var(--neon-green); margin-top: 2px;"></i>
@@ -239,7 +235,8 @@
     </div>
 
 <script>
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrTSY-gzGmHcVl0G4pkW2LxWNQBgUQmNn9ww18ApL_C0xjUgqLMi5RpcD40eUBKEmVZA/exec";
+    // Configured targeting variables for the updated Supabase Serverless Architecture
+    const SUPABASE_ENDPOINT_URL = "https://xvffvaohqirrlebhcgjt.supabase.co/functions/v1/verify-phantom";
     const HARDCODED_PASS = "PhantomSecureCoreEngineV2026";
 
     // Anti-DevTools Watcher
@@ -259,7 +256,7 @@
 
     async function runDecryptionPipeline(licenseKey) {
         const authMsg = document.getElementById('auth-msg');
-        const authBtn = document.getElementById('authBtn'); // Hook the activation button element
+        const authBtn = document.getElementById('authBtn');
 
         // Safety gate: Check if the button state indicates an ongoing secure call loop
         if (authBtn.disabled || authBtn.innerText === "VERIFYING...") return;
@@ -278,9 +275,22 @@
         const fingerprint = navigator.userAgent + window.screen.width + window.screen.height + navigator.language;
         
         try {
-            const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=verify&key=${encodeURIComponent(licenseKey)}&info=${encodeURIComponent(fingerprint)}`);
+            // Executing secure payload transport to Supabase Edge Function
+            const response = await fetch(SUPABASE_ENDPOINT_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    action: "verify",
+                    key: licenseKey,
+                    info: fingerprint
+                })
+            });
+
             const result = await response.json();
 
+            // Check authorization state returned from PostgreSQL backend
             if (result.authorized) {
                 const encResponse = await fetch('app.enc');
                 const packet = await encResponse.json();
@@ -314,13 +324,11 @@
                 setTimeout(() => {
                     const slideBanner = document.getElementById('usageAlertBanner');
                     if (slideBanner) {
-                        // Smoothly open up the space, show the banner, and add a bottom margin
                         slideBanner.style.maxHeight = "100px";
                         slideBanner.style.opacity = "1";
                         slideBanner.style.marginBottom = "20px";
                         slideBanner.style.borderWidth = "1px";
                         
-                        // After 6 seconds, collapse everything back down to 0 space completely
                         setTimeout(() => {
                             slideBanner.style.maxHeight = "0px";
                             slideBanner.style.opacity = "0";
@@ -337,7 +345,6 @@
                     authMsg.innerText = "PHANTOM QUALITY TOOL";
                     authMsg.style.color = "rgba(255, 255, 255, 0.6)";
                 }
-                // Fallback unlock to re-enable inputs on verification dropouts
                 authBtn.disabled = false;
                 authBtn.style.opacity = "1";
                 authBtn.style.cursor = "pointer";
@@ -350,7 +357,6 @@
                 authMsg.innerText = "ACCESS REFUSED";
                 authMsg.style.color = "#ff3b30";
             }
-            // Fallback unlock to guarantee connectivity retries
             authBtn.disabled = false;
             authBtn.style.opacity = "1";
             authBtn.style.cursor = "pointer";
