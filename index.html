@@ -109,31 +109,10 @@
             animation-delay: -10s;
         }
 
-        .bg-grid {
-            position: fixed;
-            top: -50%;
-            left: -50%;
-            width: 200vw;
-            height: 200vh;
-            background-image: 
-                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-            background-size: 50px 50px;
-            z-index: -1;
-            pointer-events: none;
-            transform: perspective(500px) rotateX(60deg) translateY(-100px) scale(3);
-            animation: grid-move 20s linear infinite;
-        }
-
         @keyframes orb-float {
             0% { transform: translate(0, 0) scale(1); }
             50% { transform: translate(10vw, 5vh) scale(1.2); }
             100% { transform: translate(-5vw, -10vh) scale(0.9); }
-        }
-
-        @keyframes grid-move {
-            0% { transform: perspective(500px) rotateX(60deg) translateY(0) scale(3); }
-            100% { transform: perspective(500px) rotateX(60deg) translateY(50px) scale(3); }
         }
 
         @keyframes card-entry {
@@ -373,22 +352,11 @@
             z-index: 0;
             animation: ripple-expand 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
         }
-
-        .hyper-warp {
-            animation: hyper-jump 1.2s cubic-bezier(0.5, 0, 0.2, 1) forwards !important;
-        }
-
-        @keyframes hyper-jump {
-            0% { transform: perspective(500px) rotateX(60deg) translateY(-100px) scale(3); filter: blur(0); }
-            40% { transform: perspective(500px) rotateX(60deg) translateY(200px) scale(8); filter: blur(8px); opacity: 0; }
-            41% { transform: perspective(500px) rotateX(60deg) translateY(-800px) scale(3); filter: blur(8px); opacity: 0; }
-            100% { transform: perspective(500px) rotateX(60deg) translateY(-100px) scale(3); filter: blur(0); opacity: 1; }
-        }
     </style>
 </head>
 <body>
 
-    <div class="bg-grid"></div>
+    <canvas id="particle-canvas" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none;"></canvas>
 
     <div id="auth-screen">
         <div class="liquid-card">
@@ -591,12 +559,9 @@
                 localStorage.setItem('phantom_key', licenseKey);
 
                 // --- HYPER JUMP TRANSITION ---
-                const bgGrid = document.querySelector('.bg-grid');
-                if (bgGrid) {
-                    bgGrid.classList.add('hyper-warp');
-                    setTimeout(() => {
-                        bgGrid.classList.remove('hyper-warp');
-                    }, 1200);
+                if (window.particleWarp) {
+                    window.particleWarp(25);
+                    setTimeout(() => window.particleWarp(1), 800);
                 }
 
                 // Delay removing the auth screen to sync with jump (at 500ms)
@@ -651,43 +616,120 @@
         }
     }
 
-    // Background Interactivity
+    // Background Interactivity - Particle System
     document.addEventListener('DOMContentLoaded', () => {
-        const bgGrid = document.querySelector('.bg-grid');
-        
-        // Parallax effect on mouse/touch move
-        const handleMove = (e) => {
+        const canvas = document.getElementById('particle-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let w, h;
+        let mouse = { x: null, y: null, active: false };
+
+        const resize = () => {
+            w = canvas.width = window.innerWidth;
+            h = canvas.height = window.innerHeight;
+            
+            particles = [];
+            // Optimize for mobile by limiting particle count
+            let count = Math.min(100, Math.floor((w * h) / 10000));
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle());
+            }
+        };
+        window.addEventListener('resize', resize);
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * (w || window.innerWidth);
+                this.y = Math.random() * (h || window.innerHeight);
+                this.vx = (Math.random() - 0.5) * 1.5;
+                this.vy = (Math.random() - 0.5) * 1.5;
+                this.baseSize = Math.random() * 1.5 + 0.5;
+                this.size = this.baseSize;
+            }
+            update() {
+                this.x += this.vx * window._warpSpeed;
+                this.y += this.vy * window._warpSpeed;
+                
+                if (this.x < 0 || this.x > w) this.vx *= -1;
+                if (this.y < 0 || this.y > h) this.vy *= -1;
+                
+                if (mouse.active) {
+                    let dx = mouse.x - this.x;
+                    let dy = mouse.y - this.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < 120) {
+                        this.x -= (dx / dist) * 2;
+                        this.y -= (dy / dist) * 2;
+                    }
+                }
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 242, 255, 0.7)';
+                ctx.fill();
+            }
+        }
+
+        window._warpSpeed = 1;
+        window.particleWarp = (speed) => { window._warpSpeed = speed; };
+
+        resize();
+
+        const animate = () => {
+            ctx.clearRect(0, 0, w, h);
+            
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i; j < particles.length; j++) {
+                    let dx = particles[i].x - particles[j].x;
+                    let dy = particles[i].y - particles[j].y;
+                    let dist = dx*dx + dy*dy;
+                    if (dist < 12000) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(0, 255, 170, ${0.4 - dist/30000})`;
+                        ctx.lineWidth = 0.8;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        };
+        animate();
+
+        // Interaction Listeners
+        const updateMouse = (e) => {
             let clientX = e.clientX;
             let clientY = e.clientY;
             if (clientX === undefined && e.touches && e.touches.length > 0) {
                 clientX = e.touches[0].clientX;
                 clientY = e.touches[0].clientY;
             }
-            if (clientX === undefined || clientY === undefined) return;
-
-            const x = (clientX / window.innerWidth - 0.5) * 40;
-            const y = (clientY / window.innerHeight - 0.5) * 40;
-            if (bgGrid) {
-                bgGrid.style.marginLeft = `${x}px`;
-                bgGrid.style.marginTop = `${y}px`;
+            if (clientX !== undefined) {
+                mouse.x = clientX;
+                mouse.y = clientY;
             }
         };
 
-        document.addEventListener('mousemove', handleMove);
-        document.addEventListener('touchmove', handleMove, {passive: true});
+        document.addEventListener('mousemove', (e) => { mouse.active = true; updateMouse(e); });
+        document.addEventListener('touchmove', (e) => { mouse.active = true; updateMouse(e); }, {passive: true});
+        document.addEventListener('mouseleave', () => mouse.active = false);
+        document.addEventListener('touchend', () => { setTimeout(() => mouse.active = false, 1000); });
 
-        // Ripple and warp effect on click/touch
-        const triggerInteraction = (e) => {
+        // Ripple Effect on Click
+        const triggerRipple = (e) => {
             let clientX = e.clientX;
             let clientY = e.clientY;
-            
             if (clientX === undefined && e.changedTouches && e.changedTouches.length > 0) {
                 clientX = e.changedTouches[0].clientX;
                 clientY = e.changedTouches[0].clientY;
             }
             if (clientX === undefined || clientY === undefined) return;
 
-            // Ripple Effect
             const ripple = document.createElement('div');
             ripple.className = 'click-ripple';
             ripple.style.left = `${clientX}px`;
@@ -695,30 +737,15 @@
             ripple.style.width = '150px';
             ripple.style.height = '150px';
             document.body.appendChild(ripple);
-
             setTimeout(() => { if (ripple.parentNode) ripple.remove(); }, 800);
 
-            // Warp effect on grid using playbackRate to avoid glitch/jump
-            if (bgGrid) {
-                const anims = bgGrid.getAnimations();
-                if (anims.length > 0) {
-                    anims.forEach(anim => anim.playbackRate = 10);
-                    setTimeout(() => {
-                        if (bgGrid) {
-                            bgGrid.getAnimations().forEach(anim => anim.playbackRate = 1);
-                        }
-                    }, 800);
-                } else {
-                    bgGrid.style.filter = 'brightness(1.5)';
-                    setTimeout(() => {
-                        if (bgGrid) bgGrid.style.filter = '';
-                    }, 800);
-                }
-            }
+            // Brief particle warp
+            window.particleWarp(4);
+            setTimeout(() => window.particleWarp(1), 600);
         };
 
-        window.addEventListener('click', triggerInteraction);
-        window.addEventListener('touchstart', triggerInteraction, {passive: true});
+        window.addEventListener('click', triggerRipple);
+        window.addEventListener('touchstart', triggerRipple, {passive: true});
     });
 </script>
 </body>
