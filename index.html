@@ -568,7 +568,7 @@
                     clearTextScript = null;
                 }, 500);
             } else {
-                throw new Error(result.message || "Hardware authentication rejected.");
+                throw new Error(result.message || "Server verification failed."););
             }
         } catch (err) {
             console.error(err);
