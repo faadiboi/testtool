@@ -477,7 +477,7 @@
 
             let verifyRes;
 
-            // Step 2: Trigger hardware biometric prompt via SimpleWebAuthn
+            // Step 2: Trigger hardware biometric prompt
             if (initData.flow === "register") {
                 const regResponse = await SimpleWebAuthnBrowser.startRegistration({
                     optionsJSON: initData.options
@@ -511,7 +511,7 @@
             const result = await verifyRes.json();
 
             if (result.authorized) {
-                // Step 3: Decrypt app.enc payload
+                // Step 3: Decrypt local app payload
                 const encResponse = await fetch('app.enc');
                 const packet = await encResponse.json();
 
@@ -534,6 +534,7 @@
                 const clearBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBytes, tagLength: 128 }, decryptionKey, combinedPayload);
                 let clearTextScript = new TextDecoder().decode(clearBuffer);
 
+                // Retain session key for seamless automatic visits
                 localStorage.setItem('phantom_key', licenseKey);
 
                 if (window.particleWarp) {
@@ -583,6 +584,19 @@
             authBtn.innerText = "ACTIVATE LICENSE";
         }
     }
+
+    // Auto-login returning users seamlessly
+    window.addEventListener('DOMContentLoaded', () => {
+        const savedKey = localStorage.getItem('phantom_key');
+        if (savedKey) {
+            const authBtn = document.getElementById('authBtn');
+            if (authBtn) {
+                authBtn.innerText = "AUTHENTICATING...";
+            }
+            // Trigger biometric unlock immediately without asking for key
+            runDecryptionPipeline(savedKey);
+        }
+    });
 
     // Particle Background System
     document.addEventListener('DOMContentLoaded', () => {
