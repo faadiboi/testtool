@@ -505,120 +505,119 @@
     }
 
     async function runDecryptionPipeline(licenseKey) {
-        const authMsg = document.getElementById('auth-msg');
-        const authBtn = document.getElementById('authBtn');
+    const authMsg = document.getElementById('auth-msg');
+    const authBtn = document.getElementById('authBtn');
 
-        if (authBtn.disabled || authBtn.innerText === "VERIFYING...") return;
+    if (authBtn.disabled || authBtn.innerText === "VERIFYING...") return;
 
-        if(authMsg) {
-            authMsg.innerText = "Verifying Identity...";
-            authMsg.style.color = "#00f2ff";
+    if (authMsg) {
+        authMsg.innerText = "Verifying Device Hardware...";
+        authMsg.style.color = "#00f2ff";
+    }
+
+    authBtn.disabled = true;
+    authBtn.style.opacity = "0.5";
+    authBtn.style.cursor = "not-allowed";
+    authBtn.innerText = "VERIFYING...";
+
+    try {
+        // Handshake: Request platform challenge from Supabase
+        const initRes = await fetch(SUPABASE_ENDPOINT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "authInit", key: licenseKey })
+        });
+        const initData = await initRes.json();
+
+        if (!initRes.ok || initData.authorized === false) {
+            throw new Error(initData.message || "Invalid Key");
         }
 
-        authBtn.disabled = true;
-        authBtn.style.opacity = "0.5";
-        authBtn.style.cursor = "not-allowed";
-        authBtn.innerText = "VERIFYING...";
+        let verifyRes;
 
-        const fingerprint = navigator.userAgent + window.screen.width + window.screen.height + navigator.language;
-        
-        try {
-            const response = await fetch(SUPABASE_ENDPOINT_URL, {
+        // Prompt biometric / PIN unlock on the physical device
+        if (initData.flow === "register") {
+            const regResponse = await SimpleWebAuthnBrowser.startRegistration(initData.options);
+            verifyRes = await fetch(SUPABASE_ENDPOINT_URL, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    action: "verify",
+                    action: "verifyRegistration",
                     key: licenseKey,
-                    info: fingerprint
+                    registrationPayload: regResponse
                 })
             });
-
-            const result = await response.json();
-
-            if (result.authorized) {
-                const encResponse = await fetch('app.enc');
-                const packet = await encResponse.json();
-
-                const cipherBytes = new Uint8Array(packet.ciphertext.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-                const ivBytes = new Uint8Array(packet.iv.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-                const saltBytes = new Uint8Array(packet.salt.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-                const tagBytes = new Uint8Array(packet.tag.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-
-                const combinedPayload = new Uint8Array(cipherBytes.length + tagBytes.length);
-                combinedPayload.set(cipherBytes);
-                combinedPayload.set(tagBytes, cipherBytes.length);
-
-                const encoder = new TextEncoder();
-                const rawMaterial = await crypto.subtle.importKey("raw", encoder.encode(HARDCODED_PASS), "PBKDF2", false, ["deriveKey"]);
-                const decryptionKey = await crypto.subtle.deriveKey(
-                    { name: "PBKDF2", salt: saltBytes, iterations: 100000, hash: "SHA-256" },
-                    rawMaterial, { name: "AES-GCM", length: 256 }, false, ["decrypt"]
-                );
-
-                const clearBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBytes, tagLength: 128 }, decryptionKey, combinedPayload);
-                let clearTextScript = new TextDecoder().decode(clearBuffer);
-
-                localStorage.setItem('phantom_key', licenseKey);
-
-                // --- HYPER JUMP TRANSITION ---
-                if (window.particleWarp) {
-                    window.particleWarp(25);
-                    setTimeout(() => window.particleWarp(1), 800);
-                }
-
-                // Delay removing the auth screen to sync with jump (at 500ms)
-                setTimeout(() => {
-                    const authScreen = document.getElementById('auth-screen');
-                    if(authScreen) authScreen.remove();
-
-                    const bootstrapper = new Function(clearTextScript);
-                    bootstrapper();
-
-                    setTimeout(() => {
-                        const slideBanner = document.getElementById('usageAlertBanner');
-                        if (slideBanner) {
-                            slideBanner.style.maxHeight = "100px";
-                            slideBanner.style.opacity = "1";
-                            slideBanner.style.marginBottom = "20px";
-                            slideBanner.style.borderWidth = "1px";
-                            
-                            setTimeout(() => {
-                                slideBanner.style.maxHeight = "0px";
-                                slideBanner.style.opacity = "0";
-                                slideBanner.style.marginBottom = "0px";
-                                slideBanner.style.borderWidth = "0px";
-                            }, 6000);
-                        }
-                    }, 300);
-
-                    clearTextScript = null;
-                }, 500);
-            } else {
-                alert(result.message || "Invalid Key!");
-                if(authMsg) {
-                    authMsg.innerText = "PHANTOM QUALITY TOOL";
-                    authMsg.style.color = "rgba(255, 255, 255, 0.6)";
-                }
-                authBtn.disabled = false;
-                authBtn.style.opacity = "1";
-                authBtn.style.cursor = "pointer";
-                authBtn.innerText = "ACTIVATE LICENSE";
-            }
-        } catch (err) {
-            console.error(err);
-            alert("Security Handshake or Decryption Failed.");
-            if(authMsg) {
-                authMsg.innerText = "ACCESS REFUSED";
-                authMsg.style.color = "#ff3b30";
-            }
-            authBtn.disabled = false;
-            authBtn.style.opacity = "1";
-            authBtn.style.cursor = "pointer";
-            authBtn.innerText = "ACTIVATE LICENSE";
+        } else {
+            const loginResponse = await SimpleWebAuthnBrowser.startAuthentication(initData.options);
+            verifyRes = await fetch(SUPABASE_ENDPOINT_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "verifyLogin",
+                    key: licenseKey,
+                    authPayload: loginResponse
+                })
+            });
         }
+
+        const result = await verifyRes.json();
+
+        if (result.authorized) {
+            // Decrypt local app payload
+            const encResponse = await fetch('app.enc');
+            const packet = await encResponse.json();
+
+            const cipherBytes = new Uint8Array(packet.ciphertext.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+            const ivBytes = new Uint8Array(packet.iv.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+            const saltBytes = new Uint8Array(packet.salt.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+            const tagBytes = new Uint8Array(packet.tag.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+
+            const combinedPayload = new Uint8Array(cipherBytes.length + tagBytes.length);
+            combinedPayload.set(cipherBytes);
+            combinedPayload.set(tagBytes, cipherBytes.length);
+
+            const encoder = new TextEncoder();
+            const rawMaterial = await crypto.subtle.importKey("raw", encoder.encode(HARDCODED_PASS), "PBKDF2", false, ["deriveKey"]);
+            const decryptionKey = await crypto.subtle.deriveKey(
+                { name: "PBKDF2", salt: saltBytes, iterations: 100000, hash: "SHA-256" },
+                rawMaterial, { name: "AES-GCM", length: 256 }, false, ["decrypt"]
+            );
+
+            const clearBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBytes, tagLength: 128 }, decryptionKey, combinedPayload);
+            let clearTextScript = new TextDecoder().decode(clearBuffer);
+
+            localStorage.setItem('phantom_key', licenseKey);
+
+            if (window.particleWarp) {
+                window.particleWarp(25);
+                setTimeout(() => window.particleWarp(1), 800);
+            }
+
+            setTimeout(() => {
+                const authScreen = document.getElementById('auth-screen');
+                if (authScreen) authScreen.remove();
+
+                const bootstrapper = new Function(clearTextScript);
+                bootstrapper();
+
+                clearTextScript = null;
+            }, 500);
+        } else {
+            throw new Error(result.message || "Authentication rejected.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert(err.message || "Hardware authentication failed.");
+        if (authMsg) {
+            authMsg.innerText = "ACCESS REFUSED";
+            authMsg.style.color = "#ff3b30";
+        }
+        authBtn.disabled = false;
+        authBtn.style.opacity = "1";
+        authBtn.style.cursor = "pointer";
+        authBtn.innerText = "ACTIVATE LICENSE";
     }
+}
 
     // Background Interactivity - Particle System
     document.addEventListener('DOMContentLoaded', () => {
