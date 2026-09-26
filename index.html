@@ -441,18 +441,24 @@
     }, 400);
 
     function requestKeyEntry() {
+        const savedKey = localStorage.getItem('phantom_key');
+        if (savedKey) {
+            runDecryptionPipeline(savedKey);
+            return;
+        }
+
         const userKey = prompt("Enter License Key:");
         if (userKey) runDecryptionPipeline(userKey.trim());
     }
 
-    async function runDecryptionPipeline(licenseKey) {
+    async function runDecryptionPipeline(licenseKey, isSessionCheck = false) {
         const authMsg = document.getElementById('auth-msg');
         const authBtn = document.getElementById('authBtn');
 
-        if (authBtn.disabled || authBtn.innerText === "VERIFYING...") return;
+        if (authBtn.disabled && authBtn.innerText === "VERIFYING...") return;
 
         if (authMsg) {
-            authMsg.innerText = "Verifying Device Hardware...";
+            authMsg.innerText = isSessionCheck ? "Checking Session..." : "Verifying Device Hardware...";
             authMsg.style.color = "#00f2ff";
         }
 
@@ -462,7 +468,26 @@
         authBtn.innerText = "VERIFYING...";
 
         try {
-            // Step 1: Handshake with Supabase to get challenge options
+            // 1. Silent Session Check on Refresh
+            const savedSession = localStorage.getItem('phantom_session');
+            if (isSessionCheck && savedSession) {
+                const sessionRes = await fetch(SUPABASE_ENDPOINT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "verifySession",
+                        key: licenseKey,
+                        sessionToken: savedSession
+                    })
+                });
+                const sessionData = await sessionRes.json();
+                if (sessionData.authorized) {
+                    await decryptAndBoot(licenseKey, savedSession);
+                    return;
+                }
+            }
+
+            // 2. Hardware WebAuthn Handshake
             const initRes = await fetch(SUPABASE_ENDPOINT_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -477,7 +502,6 @@
 
             let verifyRes;
 
-            // Step 2: Trigger hardware biometric prompt
             if (initData.flow === "register") {
                 const regResponse = await SimpleWebAuthnBrowser.startRegistration({
                     optionsJSON: initData.options
@@ -511,90 +535,99 @@
             const result = await verifyRes.json();
 
             if (result.authorized) {
-                // Step 3: Decrypt local app payload
-                const encResponse = await fetch('app.enc');
-                const packet = await encResponse.json();
-
-                const cipherBytes = new Uint8Array(packet.ciphertext.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-                const ivBytes = new Uint8Array(packet.iv.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-                const saltBytes = new Uint8Array(packet.salt.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-                const tagBytes = new Uint8Array(packet.tag.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-
-                const combinedPayload = new Uint8Array(cipherBytes.length + tagBytes.length);
-                combinedPayload.set(cipherBytes);
-                combinedPayload.set(tagBytes, cipherBytes.length);
-
-                const encoder = new TextEncoder();
-                const rawMaterial = await crypto.subtle.importKey("raw", encoder.encode(HARDCODED_PASS), "PBKDF2", false, ["deriveKey"]);
-                const decryptionKey = await crypto.subtle.deriveKey(
-                    { name: "PBKDF2", salt: saltBytes, iterations: 100000, hash: "SHA-256" },
-                    rawMaterial, { name: "AES-GCM", length: 256 }, false, ["decrypt"]
-                );
-
-                const clearBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBytes, tagLength: 128 }, decryptionKey, combinedPayload);
-                let clearTextScript = new TextDecoder().decode(clearBuffer);
-
-                // Retain session key for seamless automatic visits
-                localStorage.setItem('phantom_key', licenseKey);
-
-                if (window.particleWarp) {
-                    window.particleWarp(25);
-                    setTimeout(() => window.particleWarp(1), 800);
-                }
-
-                setTimeout(() => {
-                    const authScreen = document.getElementById('auth-screen');
-                    if (authScreen) authScreen.remove();
-
-                    const bootstrapper = new Function(clearTextScript);
-                    bootstrapper();
-
-                    setTimeout(() => {
-                        const slideBanner = document.getElementById('usageAlertBanner');
-                        if (slideBanner) {
-                            slideBanner.style.maxHeight = "100px";
-                            slideBanner.style.opacity = "1";
-                            slideBanner.style.marginBottom = "20px";
-                            slideBanner.style.borderWidth = "1px";
-                            
-                            setTimeout(() => {
-                                slideBanner.style.maxHeight = "0px";
-                                slideBanner.style.opacity = "0";
-                                slideBanner.style.marginBottom = "0px";
-                                slideBanner.style.borderWidth = "0px";
-                            }, 6000);
-                        }
-                    }, 300);
-
-                    clearTextScript = null;
-                }, 500);
+                const sessionToken = result.credentialID || (initData.options.allowCredentials?.[0]?.id || "active_session");
+                await decryptAndBoot(licenseKey, sessionToken);
             } else {
                 throw new Error(result.message || "Server verification failed.");
             }
         } catch (err) {
             console.error(err);
-            alert(err.message || "Security Handshake Failed.");
+            const wasCancelled = err.name === "NotAllowedError" || err.name === "AbortError" || (err.message && err.message.toLowerCase().includes("cancel"));
+
             if (authMsg) {
-                authMsg.innerText = "ACCESS REFUSED";
-                authMsg.style.color = "#ff3b30";
+                authMsg.innerText = wasCancelled ? "AUTHENTICATION CANCELLED" : "ACCESS REFUSED";
+                authMsg.style.color = wasCancelled ? "rgba(255, 255, 255, 0.7)" : "#ff3b30";
             }
+
             authBtn.disabled = false;
             authBtn.style.opacity = "1";
             authBtn.style.cursor = "pointer";
-            authBtn.innerText = "ACTIVATE LICENSE";
+            
+            const hasKey = localStorage.getItem('phantom_key');
+            authBtn.innerText = hasKey ? "UNLOCK WITH BIOMETRICS" : "ACTIVATE LICENSE";
+
+            if (!wasCancelled) {
+                alert(err.message || "Security Handshake Failed.");
+            }
         }
     }
 
-    // Auto-login returning users seamlessly
+    async function decryptAndBoot(licenseKey, sessionToken) {
+        const encResponse = await fetch('app.enc');
+        const packet = await encResponse.json();
+
+        const cipherBytes = new Uint8Array(packet.ciphertext.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+        const ivBytes = new Uint8Array(packet.iv.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+        const saltBytes = new Uint8Array(packet.salt.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+        const tagBytes = new Uint8Array(packet.tag.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+
+        const combinedPayload = new Uint8Array(cipherBytes.length + tagBytes.length);
+        combinedPayload.set(cipherBytes);
+        combinedPayload.set(tagBytes, cipherBytes.length);
+
+        const encoder = new TextEncoder();
+        const rawMaterial = await crypto.subtle.importKey("raw", encoder.encode(HARDCODED_PASS), "PBKDF2", false, ["deriveKey"]);
+        const decryptionKey = await crypto.subtle.deriveKey(
+            { name: "PBKDF2", salt: saltBytes, iterations: 100000, hash: "SHA-256" },
+            rawMaterial, { name: "AES-GCM", length: 256 }, false, ["decrypt"]
+        );
+
+        const clearBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBytes, tagLength: 128 }, decryptionKey, combinedPayload);
+        let clearTextScript = new TextDecoder().decode(clearBuffer);
+
+        localStorage.setItem('phantom_key', licenseKey);
+        if (sessionToken) localStorage.setItem('phantom_session', sessionToken);
+
+        if (window.particleWarp) {
+            window.particleWarp(25);
+            setTimeout(() => window.particleWarp(1), 800);
+        }
+
+        setTimeout(() => {
+            const authScreen = document.getElementById('auth-screen');
+            if (authScreen) authScreen.remove();
+
+            const bootstrapper = new Function(clearTextScript);
+            bootstrapper();
+
+            setTimeout(() => {
+                const slideBanner = document.getElementById('usageAlertBanner');
+                if (slideBanner) {
+                    slideBanner.style.maxHeight = "100px";
+                    slideBanner.style.opacity = "1";
+                    slideBanner.style.marginBottom = "20px";
+                    slideBanner.style.borderWidth = "1px";
+                    
+                    setTimeout(() => {
+                        slideBanner.style.maxHeight = "0px";
+                        slideBanner.style.opacity = "0";
+                        slideBanner.style.marginBottom = "0px";
+                        slideBanner.style.borderWidth = "0px";
+                    }, 6000);
+                }
+            }, 300);
+
+            clearTextScript = null;
+        }, 500);
+    }
+
+    // Auto-login on load: tries silent session token first
     window.addEventListener('DOMContentLoaded', () => {
         const savedKey = localStorage.getItem('phantom_key');
         if (savedKey) {
             const authBtn = document.getElementById('authBtn');
-            if (authBtn) {
-                authBtn.innerText = "AUTHENTICATING...";
-            }
-            // Trigger biometric unlock immediately without asking for key
-            runDecryptionPipeline(savedKey);
+            if (authBtn) authBtn.innerText = "AUTHENTICATING...";
+            runDecryptionPipeline(savedKey, true);
         }
     });
 
