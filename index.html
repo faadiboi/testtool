@@ -751,6 +751,163 @@
         window.addEventListener('click', triggerRipple);
         window.addEventListener('touchstart', triggerRipple, {passive: true});
     });
+    // Helper to get or generate persistent local device nonce
+    async function getPhysicalDeviceSecret(createNewIfMissing = false) {
+        let secret = localStorage.getItem('phantom_physical_nonce');
+        if (!secret) {
+            try {
+                secret = await idbKeyval.get('phantom_physical_nonce');
+            } catch(e) {}
+        }
+
+        if (!secret && createNewIfMissing) {
+            secret = 'dev_sec_' + crypto.randomUUID() + '_' + Date.now();
+            localStorage.setItem('phantom_physical_nonce', secret);
+            try {
+                await idbKeyval.set('phantom_physical_nonce', secret);
+            } catch(e) {}
+        } else if (secret) {
+            // Keep both synchronized
+            localStorage.setItem('phantom_physical_nonce', secret);
+            try {
+                await idbKeyval.set('phantom_physical_nonce', secret);
+            } catch(e) {}
+        }
+        return secret;
+    }
+
+    function requestKeyEntry() {
+        const savedKey = localStorage.getItem('phantom_key');
+        if (savedKey) {
+            runDecryptionPipeline(savedKey);
+            return;
+        }
+
+        const userKey = prompt("Enter License Key:");
+        if (userKey) runDecryptionPipeline(userKey.trim());
+    }
+
+    async function runDecryptionPipeline(licenseKey, isSessionCheck = false) {
+        const authMsg = document.getElementById('auth-msg');
+        const authBtn = document.getElementById('authBtn');
+
+        if (authBtn.disabled && authBtn.innerText === "VERIFYING...") return;
+
+        if (authMsg) {
+            authMsg.innerText = isSessionCheck ? "Checking Session..." : "Verifying Device Hardware...";
+            authMsg.style.color = "#00f2ff";
+        }
+
+        authBtn.disabled = true;
+        authBtn.style.opacity = "0.5";
+        authBtn.style.cursor = "not-allowed";
+        authBtn.innerText = "VERIFYING...";
+
+        try {
+            // 1. Check local device secret
+            let physicalSecret = await getPhysicalDeviceSecret(false);
+
+            // Silent Session Check on Refresh
+            const savedSession = localStorage.getItem('phantom_session');
+            if (isSessionCheck && savedSession && physicalSecret) {
+                const sessionRes = await fetch(SUPABASE_ENDPOINT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "verifySession",
+                        key: licenseKey,
+                        sessionToken: savedSession,
+                        deviceSecret: physicalSecret
+                    })
+                });
+                const sessionData = await sessionRes.json();
+                if (sessionData.authorized) {
+                    await decryptAndBoot(licenseKey, savedSession);
+                    return;
+                }
+            }
+
+            // 2. Hardware WebAuthn Handshake
+            const initRes = await fetch(SUPABASE_ENDPOINT_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "authInit", key: licenseKey })
+            });
+
+            const initData = await initRes.json();
+
+            if (!initRes.ok || !initData.options) {
+                throw new Error(initData.message || "Invalid Key or Session Blocked.");
+            }
+
+            let verifyRes;
+
+            if (initData.flow === "register") {
+                // Generate brand-new physical device secret on the first device
+                physicalSecret = await getPhysicalDeviceSecret(true);
+
+                const regResponse = await SimpleWebAuthnBrowser.startRegistration({
+                    optionsJSON: initData.options
+                });
+
+                verifyRes = await fetch(SUPABASE_ENDPOINT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "verifyRegistration",
+                        key: licenseKey,
+                        registrationPayload: regResponse,
+                        deviceSecret: physicalSecret
+                    })
+                });
+            } else {
+                // If it is a returning login, pass the physical secret
+                // On Phone B (synced Apple ID), physicalSecret will be null!
+                const loginResponse = await SimpleWebAuthnBrowser.startAuthentication({
+                    optionsJSON: initData.options
+                });
+
+                verifyRes = await fetch(SUPABASE_ENDPOINT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "verifyLogin",
+                        key: licenseKey,
+                        authPayload: loginResponse,
+                        deviceSecret: physicalSecret || ""
+                    })
+                });
+            }
+
+            const result = await verifyRes.json();
+
+            if (result.authorized) {
+                const sessionToken = result.credentialID || (initData.options.allowCredentials?.[0]?.id || "active_session");
+                await decryptAndBoot(licenseKey, sessionToken);
+            } else {
+                throw new Error(result.message || "Device authorization failed.");
+            }
+        } catch (err) {
+            console.error(err);
+            const wasCancelled = err.name === "NotAllowedError" || err.name === "AbortError" || (err.message && err.message.toLowerCase().includes("cancel"));
+
+            if (authMsg) {
+                authMsg.innerText = wasCancelled ? "AUTHENTICATION CANCELLED" : "ACCESS REFUSED";
+                authMsg.style.color = wasCancelled ? "rgba(255, 255, 255, 0.7)" : "#ff3b30";
+            }
+
+            authBtn.disabled = false;
+            authBtn.style.opacity = "1";
+            authBtn.style.cursor = "pointer";
+            
+            const hasKey = localStorage.getItem('phantom_key');
+            authBtn.innerText = hasKey ? "UNLOCK WITH BIOMETRICS" : "ACTIVATE LICENSE";
+
+            if (!wasCancelled) {
+                alert(err.message || "Security Handshake Failed.");
+            }
+        }
+    }
 </script>
 </body>
 </html>
