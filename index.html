@@ -455,20 +455,22 @@
         const authMsg = document.getElementById('auth-msg');
         const authBtn = document.getElementById('authBtn');
 
-        if (authBtn.disabled && authBtn.innerText === "VERIFYING...") return;
+        if (authBtn && authBtn.disabled && authBtn.innerText === "VERIFYING...") return;
 
         if (authMsg) {
             authMsg.innerText = isSessionCheck ? "Checking Session..." : "Verifying Device Hardware...";
             authMsg.style.color = "#00f2ff";
         }
 
-        authBtn.disabled = true;
-        authBtn.style.opacity = "0.5";
-        authBtn.style.cursor = "not-allowed";
-        authBtn.innerText = "VERIFYING...";
+        if (authBtn) {
+            authBtn.disabled = true;
+            authBtn.style.opacity = "0.5";
+            authBtn.style.cursor = "not-allowed";
+            authBtn.innerText = "VERIFYING...";
+        }
 
         try {
-            // 1. Silent Session Check on Page Refresh
+            // 1. Silent Session Check on Refresh (Validates secure random 30-day token)
             const savedSession = localStorage.getItem('phantom_session');
             if (isSessionCheck && savedSession) {
                 const sessionRes = await fetch(SUPABASE_ENDPOINT_URL, {
@@ -534,9 +536,8 @@
 
             const result = await verifyRes.json();
 
-            if (result.authorized) {
-                const sessionToken = result.credentialID || (initData.options.allowCredentials?.[0]?.id || "active_session");
-                await decryptAndBoot(licenseKey, sessionToken);
+            if (result.authorized && result.sessionToken) {
+                await decryptAndBoot(licenseKey, result.sessionToken);
             } else {
                 throw new Error(result.message || "Device authorization failed.");
             }
@@ -544,19 +545,35 @@
             console.error(err);
             const wasCancelled = err.name === "NotAllowedError" || err.name === "AbortError" || (err.message && err.message.toLowerCase().includes("cancel"));
 
-            if (authMsg) {
+            const isInvalidKey = err.message && (
+                err.message.toLowerCase().includes("invalid license") || 
+                err.message.toLowerCase().includes("invalid key") ||
+                err.message.toLowerCase().includes("missing license") ||
+                err.message.toLowerCase().includes("session expired")
+            );
+
+            // Self-cleaning: purge local cache if revoked or expired
+            if (isInvalidKey) {
+                localStorage.removeItem('phantom_key');
+                localStorage.removeItem('phantom_session');
+                if (authMsg) {
+                    authMsg.innerText = "LICENSE KEY NOT FOUND";
+                    authMsg.style.color = "#ff3b30";
+                }
+            } else if (authMsg) {
                 authMsg.innerText = wasCancelled ? "AUTHENTICATION CANCELLED" : "ACCESS REFUSED";
                 authMsg.style.color = wasCancelled ? "rgba(255, 255, 255, 0.7)" : "#ff3b30";
             }
 
-            authBtn.disabled = false;
-            authBtn.style.opacity = "1";
-            authBtn.style.cursor = "pointer";
-            
-            const hasKey = localStorage.getItem('phantom_key');
-            authBtn.innerText = hasKey ? "UNLOCK WITH BIOMETRICS" : "ACTIVATE LICENSE";
+            if (authBtn) {
+                authBtn.disabled = false;
+                authBtn.style.opacity = "1";
+                authBtn.style.cursor = "pointer";
+                const hasKey = localStorage.getItem('phantom_key');
+                authBtn.innerText = hasKey ? "UNLOCK WITH BIOMETRICS" : "ACTIVATE LICENSE";
+            }
 
-            if (!wasCancelled) {
+            if (!wasCancelled && !isInvalidKey) {
                 alert(err.message || "Security Handshake Failed.");
             }
         }
@@ -596,6 +613,9 @@
         setTimeout(() => {
             const authScreen = document.getElementById('auth-screen');
             if (authScreen) authScreen.remove();
+
+            const appContent = document.getElementById('app-content');
+            if (appContent) appContent.style.display = "block";
 
             const bootstrapper = new Function(clearTextScript);
             bootstrapper();
