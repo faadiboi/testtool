@@ -17,9 +17,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@300;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
-    <!-- SimpleWebAuthn Browser Client Bundle -->
-    <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
-
     <script>
     const idbKeyval = (() => {
       'use strict';
@@ -87,6 +84,7 @@
             position: relative;
         }
 
+        /* Animated Background */
         body::before, body::after {
             content: '';
             position: fixed;
@@ -217,6 +215,24 @@
             letter-spacing: 1px;
         }
 
+        .pill-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 300px; height: 300px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 0;
+            transition: transform 0.5s, opacity 1s;
+        }
+
+        .pill-btn:active::after {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+            transition: 0s;
+        }
+
         .pill-btn:hover { 
             transform: translateY(-2px); 
             box-shadow: 0 15px 25px rgba(0,0,0,0.4), 0 0 15px rgba(0, 242, 255, 0.3);
@@ -238,6 +254,7 @@
             border-color: rgba(255, 59, 48, 0.5) !important;
         }
         
+        /* Native Android Install Custom Trigger Button Styling */
         .btn-android-install { 
             display: none; 
             background: linear-gradient(135deg, rgba(0, 242, 255, 0.15), rgba(0, 255, 170, 0.15)) !important; 
@@ -246,6 +263,12 @@
             font-size: 0.85rem !important; 
             margin-top: 5px; 
             margin-bottom: 15px; 
+        }
+        
+        .btn-android-install:hover {
+            background: linear-gradient(135deg, rgba(0, 242, 255, 0.25), rgba(0, 255, 170, 0.25)) !important; 
+            box-shadow: 0 10px 20px rgba(0, 255, 170, 0.2) !important;
+            border-color: rgba(0, 255, 170, 0.6) !important;
         }
         
         .file-box { 
@@ -259,6 +282,12 @@
             overflow: hidden;
         }
 
+        .file-box:hover {
+            border-color: var(--neon-blue);
+            background: rgba(0, 242, 255, 0.06);
+            box-shadow: inset 0 0 15px rgba(0, 242, 255, 0.1);
+        }
+
         input[type="file"] { 
             color: var(--text-dim); 
             font-size: 0.75rem; 
@@ -267,6 +296,7 @@
             cursor: pointer;
         }
 
+        /* Customize file input button */
         input[type="file"]::file-selector-button {
             background: rgba(255,255,255,0.1);
             border: 1px solid rgba(255,255,255,0.2);
@@ -279,6 +309,11 @@
             font-family: 'Inter', sans-serif;
             font-size: 0.7rem;
             font-weight: 600;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: #fff;
         }
 
         .credits-footer { margin-top: 35px; padding-top: 25px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
@@ -296,6 +331,13 @@
         .fa-tiktok { color: #fff; }
         .fa-instagram { color: #ff006a; }
         .social-username { font-family: 'Inter', sans-serif; color: var(--text-main); font-size: 0.85rem; font-weight: 600; }
+        .social-item:hover { 
+            transform: translateY(-5px); 
+            background: rgba(255, 255, 255, 0.1); 
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        .social-item:active { transform: scale(0.95); transition: 0.1s ease; }
         #status { margin-top: 15px; font-size: 0.75rem; font-weight: 700; height: 16px; letter-spacing: 0.5px; }
         .success { color: var(--neon-green); text-shadow: 0 0 10px rgba(0, 255, 170, 0.4); }
         .error { color: #ff3b30; text-shadow: 0 0 10px rgba(255, 59, 48, 0.4); }
@@ -326,6 +368,7 @@
             <p id="auth-msg" class="subtitle">PHANTOM QUALITY TOOL</p>
             
             <button id="authBtn" class="pill-btn" onclick="requestKeyEntry()">ACTIVATE LICENSE</button>
+            
             <button id="androidInstallBtn" class="pill-btn btn-android-install"><i class="fa-solid fa-download" style="margin-right: 8px; color: var(--neon-green)"></i> INSTALL PHANTOM APP</button>
             
             <div class="credits-footer">
@@ -405,26 +448,42 @@
     const SUPABASE_ENDPOINT_URL = "https://yzoganqwxxbnzumilvln.supabase.co/functions/v1/verify-phantom";
     const HARDCODED_PASS = "PhantomSecureCoreEngineV2026";
 
-    // PWA Install Prompt Automation
+    // --- NATIVE ANDROID LIFE CYCLE INSTALL AUTOMATION ROUTINE ---
     let deferredInstallPrompt = null;
     const androidBtn = document.getElementById('androidInstallBtn');
 
     window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent older Android Chrome UI from flashing the default tiny bottom text bar
         e.preventDefault();
+        // Hold onto the trigger event so we can fire it precisely when our button is clicked
         deferredInstallPrompt = e;
-        if (androidBtn) androidBtn.style.display = 'block';
+        
+        // Show our clean stylized button right underneath the activation button
+        if (androidBtn) {
+            androidBtn.style.display = 'block';
+        }
     });
 
     if (androidBtn) {
         androidBtn.addEventListener('click', async () => {
             if (!deferredInstallPrompt) return;
+            
+            // Pop the official Google Play lookalike app system layout on screen
             deferredInstallPrompt.prompt();
-            await deferredInstallPrompt.userChoice;
+            
+            // Wait for the user execution state response
+            const { outcome } = await deferredInstallPrompt.userChoice;
+            if (outcome === 'accepted') {
+                console.log('User deployed the app onto their Android device container.');
+            }
+            
+            // Dissolve the setup prompt element completely
             deferredInstallPrompt = null;
             androidBtn.style.display = 'none';
         });
     }
 
+    // Clean execution confirmation flag if app is already running inside Standalone PWA view
     window.addEventListener('appinstalled', () => {
         if (androidBtn) androidBtn.style.display = 'none';
         deferredInstallPrompt = null;
@@ -441,217 +500,127 @@
     }, 400);
 
     function requestKeyEntry() {
-        const savedKey = localStorage.getItem('phantom_key');
-        if (savedKey) {
-            runDecryptionPipeline(savedKey);
-            return;
-        }
-
         const userKey = prompt("Enter License Key:");
-        if (userKey) runDecryptionPipeline(userKey.trim());
+        if (userKey) runDecryptionPipeline(userKey);
     }
 
-    async function runDecryptionPipeline(licenseKey, isSessionCheck = false) {
+    async function runDecryptionPipeline(licenseKey) {
         const authMsg = document.getElementById('auth-msg');
         const authBtn = document.getElementById('authBtn');
 
-        if (authBtn && authBtn.disabled && authBtn.innerText === "VERIFYING...") return;
+        if (authBtn.disabled || authBtn.innerText === "VERIFYING...") return;
 
-        if (authMsg) {
-            authMsg.innerText = isSessionCheck ? "Checking Session..." : "Verifying Device Hardware...";
+        if(authMsg) {
+            authMsg.innerText = "Verifying Identity...";
             authMsg.style.color = "#00f2ff";
         }
 
-        if (authBtn) {
-            authBtn.disabled = true;
-            authBtn.style.opacity = "0.5";
-            authBtn.style.cursor = "not-allowed";
-            authBtn.innerText = "VERIFYING...";
-        }
+        authBtn.disabled = true;
+        authBtn.style.opacity = "0.5";
+        authBtn.style.cursor = "not-allowed";
+        authBtn.innerText = "VERIFYING...";
 
+        const fingerprint = navigator.userAgent + window.screen.width + window.screen.height + navigator.language;
+        
         try {
-            // 1. Silent Session Check on Refresh (Validates secure random 30-day token)
-            const savedSession = localStorage.getItem('phantom_session');
-            if (isSessionCheck && savedSession) {
-                const sessionRes = await fetch(SUPABASE_ENDPOINT_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        action: "verifySession",
-                        key: licenseKey,
-                        sessionToken: savedSession
-                    })
-                });
-                const sessionData = await sessionRes.json();
-                if (sessionData.authorized) {
-                    await decryptAndBoot(licenseKey, savedSession);
-                    return;
-                }
-            }
-
-            // 2. Hardware WebAuthn Handshake
-            const initRes = await fetch(SUPABASE_ENDPOINT_URL, {
+            const response = await fetch(SUPABASE_ENDPOINT_URL, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "authInit", key: licenseKey })
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    action: "verify",
+                    key: licenseKey,
+                    info: fingerprint
+                })
             });
 
-            const initData = await initRes.json();
+            const result = await response.json();
 
-            if (!initRes.ok || !initData.options) {
-                throw new Error(initData.message || "Invalid Key or Session Blocked.");
-            }
+            if (result.authorized) {
+                const encResponse = await fetch('app.enc');
+                const packet = await encResponse.json();
 
-            let verifyRes;
+                const cipherBytes = new Uint8Array(packet.ciphertext.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+                const ivBytes = new Uint8Array(packet.iv.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+                const saltBytes = new Uint8Array(packet.salt.match(/.{1,2}/g).map(b => parseInt(b, 16)));
+                const tagBytes = new Uint8Array(packet.tag.match(/.{1,2}/g).map(b => parseInt(b, 16)));
 
-            if (initData.flow === "register") {
-                const regResponse = await SimpleWebAuthnBrowser.startRegistration({
-                    optionsJSON: initData.options
-                });
+                const combinedPayload = new Uint8Array(cipherBytes.length + tagBytes.length);
+                combinedPayload.set(cipherBytes);
+                combinedPayload.set(tagBytes, cipherBytes.length);
 
-                verifyRes = await fetch(SUPABASE_ENDPOINT_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        action: "verifyRegistration",
-                        key: licenseKey,
-                        registrationPayload: regResponse
-                    })
-                });
-            } else {
-                const loginResponse = await SimpleWebAuthnBrowser.startAuthentication({
-                    optionsJSON: initData.options
-                });
+                const encoder = new TextEncoder();
+                const rawMaterial = await crypto.subtle.importKey("raw", encoder.encode(HARDCODED_PASS), "PBKDF2", false, ["deriveKey"]);
+                const decryptionKey = await crypto.subtle.deriveKey(
+                    { name: "PBKDF2", salt: saltBytes, iterations: 100000, hash: "SHA-256" },
+                    rawMaterial, { name: "AES-GCM", length: 256 }, false, ["decrypt"]
+                );
 
-                verifyRes = await fetch(SUPABASE_ENDPOINT_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        action: "verifyLogin",
-                        key: licenseKey,
-                        authPayload: loginResponse
-                    })
-                });
-            }
+                const clearBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBytes, tagLength: 128 }, decryptionKey, combinedPayload);
+                let clearTextScript = new TextDecoder().decode(clearBuffer);
 
-            const result = await verifyRes.json();
+                localStorage.setItem('phantom_key', licenseKey);
 
-            if (result.authorized && result.sessionToken) {
-                await decryptAndBoot(licenseKey, result.sessionToken);
-            } else {
-                throw new Error(result.message || "Device authorization failed.");
-            }
-        } catch (err) {
-            console.error(err);
-            const wasCancelled = err.name === "NotAllowedError" || err.name === "AbortError" || (err.message && err.message.toLowerCase().includes("cancel"));
-
-            const isInvalidKey = err.message && (
-                err.message.toLowerCase().includes("invalid license") || 
-                err.message.toLowerCase().includes("invalid key") ||
-                err.message.toLowerCase().includes("missing license") ||
-                err.message.toLowerCase().includes("session expired")
-            );
-
-            // Self-cleaning: purge local cache if revoked or expired
-            if (isInvalidKey) {
-                localStorage.removeItem('phantom_key');
-                localStorage.removeItem('phantom_session');
-                if (authMsg) {
-                    authMsg.innerText = "LICENSE KEY NOT FOUND";
-                    authMsg.style.color = "#ff3b30";
+                // --- HYPER JUMP TRANSITION ---
+                if (window.particleWarp) {
+                    window.particleWarp(25);
+                    setTimeout(() => window.particleWarp(1), 800);
                 }
-            } else if (authMsg) {
-                authMsg.innerText = wasCancelled ? "AUTHENTICATION CANCELLED" : "ACCESS REFUSED";
-                authMsg.style.color = wasCancelled ? "rgba(255, 255, 255, 0.7)" : "#ff3b30";
-            }
 
-            if (authBtn) {
+                // Delay removing the auth screen to sync with jump (at 500ms)
+                setTimeout(() => {
+                    const authScreen = document.getElementById('auth-screen');
+                    if(authScreen) authScreen.remove();
+
+                    const bootstrapper = new Function(clearTextScript);
+                    bootstrapper();
+
+                    setTimeout(() => {
+                        const slideBanner = document.getElementById('usageAlertBanner');
+                        if (slideBanner) {
+                            slideBanner.style.maxHeight = "100px";
+                            slideBanner.style.opacity = "1";
+                            slideBanner.style.marginBottom = "20px";
+                            slideBanner.style.borderWidth = "1px";
+                            
+                            setTimeout(() => {
+                                slideBanner.style.maxHeight = "0px";
+                                slideBanner.style.opacity = "0";
+                                slideBanner.style.marginBottom = "0px";
+                                slideBanner.style.borderWidth = "0px";
+                            }, 6000);
+                        }
+                    }, 300);
+
+                    clearTextScript = null;
+                }, 500);
+            } else {
+                alert(result.message || "Invalid Key!");
+                if(authMsg) {
+                    authMsg.innerText = "PHANTOM QUALITY TOOL";
+                    authMsg.style.color = "rgba(255, 255, 255, 0.6)";
+                }
                 authBtn.disabled = false;
                 authBtn.style.opacity = "1";
                 authBtn.style.cursor = "pointer";
-                const hasKey = localStorage.getItem('phantom_key');
-                authBtn.innerText = hasKey ? "UNLOCK WITH BIOMETRICS" : "ACTIVATE LICENSE";
+                authBtn.innerText = "ACTIVATE LICENSE";
             }
-
-            if (!wasCancelled && !isInvalidKey) {
-                alert(err.message || "Security Handshake Failed.");
+        } catch (err) {
+            console.error(err);
+            alert("Security Handshake or Decryption Failed.");
+            if(authMsg) {
+                authMsg.innerText = "ACCESS REFUSED";
+                authMsg.style.color = "#ff3b30";
             }
+            authBtn.disabled = false;
+            authBtn.style.opacity = "1";
+            authBtn.style.cursor = "pointer";
+            authBtn.innerText = "ACTIVATE LICENSE";
         }
     }
 
-    async function decryptAndBoot(licenseKey, sessionToken) {
-        const encResponse = await fetch('app.enc');
-        const packet = await encResponse.json();
-
-        const cipherBytes = new Uint8Array(packet.ciphertext.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-        const ivBytes = new Uint8Array(packet.iv.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-        const saltBytes = new Uint8Array(packet.salt.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-        const tagBytes = new Uint8Array(packet.tag.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-
-        const combinedPayload = new Uint8Array(cipherBytes.length + tagBytes.length);
-        combinedPayload.set(cipherBytes);
-        combinedPayload.set(tagBytes, cipherBytes.length);
-
-        const encoder = new TextEncoder();
-        const rawMaterial = await crypto.subtle.importKey("raw", encoder.encode(HARDCODED_PASS), "PBKDF2", false, ["deriveKey"]);
-        const decryptionKey = await crypto.subtle.deriveKey(
-            { name: "PBKDF2", salt: saltBytes, iterations: 100000, hash: "SHA-256" },
-            rawMaterial, { name: "AES-GCM", length: 256 }, false, ["decrypt"]
-        );
-
-        const clearBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBytes, tagLength: 128 }, decryptionKey, combinedPayload);
-        let clearTextScript = new TextDecoder().decode(clearBuffer);
-
-        localStorage.setItem('phantom_key', licenseKey);
-        if (sessionToken) localStorage.setItem('phantom_session', sessionToken);
-
-        if (window.particleWarp) {
-            window.particleWarp(25);
-            setTimeout(() => window.particleWarp(1), 800);
-        }
-
-        setTimeout(() => {
-            const authScreen = document.getElementById('auth-screen');
-            if (authScreen) authScreen.remove();
-
-            const appContent = document.getElementById('app-content');
-            if (appContent) appContent.style.display = "block";
-
-            const bootstrapper = new Function(clearTextScript);
-            bootstrapper();
-
-            setTimeout(() => {
-                const slideBanner = document.getElementById('usageAlertBanner');
-                if (slideBanner) {
-                    slideBanner.style.maxHeight = "100px";
-                    slideBanner.style.opacity = "1";
-                    slideBanner.style.marginBottom = "20px";
-                    slideBanner.style.borderWidth = "1px";
-                    
-                    setTimeout(() => {
-                        slideBanner.style.maxHeight = "0px";
-                        slideBanner.style.opacity = "0";
-                        slideBanner.style.marginBottom = "0px";
-                        slideBanner.style.borderWidth = "0px";
-                    }, 6000);
-                }
-            }, 300);
-
-            clearTextScript = null;
-        }, 500);
-    }
-
-    // Auto-login on load: tries silent session token first
-    window.addEventListener('DOMContentLoaded', () => {
-        const savedKey = localStorage.getItem('phantom_key');
-        if (savedKey) {
-            const authBtn = document.getElementById('authBtn');
-            if (authBtn) authBtn.innerText = "AUTHENTICATING...";
-            runDecryptionPipeline(savedKey, true);
-        }
-    });
-
-    // Particle Background System
+    // Background Interactivity - Particle System
     document.addEventListener('DOMContentLoaded', () => {
         const canvas = document.getElementById('particle-canvas');
         if (!canvas) return;
@@ -663,9 +632,13 @@
         const resize = () => {
             w = canvas.width = window.innerWidth;
             h = canvas.height = window.innerHeight;
+            
             particles = [];
+            // Optimize for mobile by limiting particle count
             let count = Math.min(100, Math.floor((w * h) / 10000));
-            for (let i = 0; i < count; i++) particles.push(new Particle());
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle());
+            }
         };
         window.addEventListener('resize', resize);
 
@@ -681,8 +654,10 @@
             update() {
                 this.x += this.vx * window._warpSpeed;
                 this.y += this.vy * window._warpSpeed;
+                
                 if (this.x < 0 || this.x > w) this.vx *= -1;
                 if (this.y < 0 || this.y > h) this.vy *= -1;
+                
                 if (mouse.active) {
                     let dx = mouse.x - this.x;
                     let dy = mouse.y - this.y;
@@ -708,6 +683,7 @@
 
         const animate = () => {
             ctx.clearRect(0, 0, w, h);
+            
             for (let i = 0; i < particles.length; i++) {
                 for (let j = i; j < particles.length; j++) {
                     let dx = particles[i].x - particles[j].x;
@@ -723,11 +699,13 @@
                     }
                 }
             }
+            
             particles.forEach(p => { p.update(); p.draw(); });
             requestAnimationFrame(animate);
         };
         animate();
 
+        // Interaction Listeners
         const updateMouse = (e) => {
             let clientX = e.clientX;
             let clientY = e.clientY;
@@ -746,6 +724,7 @@
         document.addEventListener('mouseleave', () => mouse.active = false);
         document.addEventListener('touchend', () => { setTimeout(() => mouse.active = false, 1000); });
 
+        // Ripple Effect on Click
         const triggerRipple = (e) => {
             let clientX = e.clientX;
             let clientY = e.clientY;
@@ -764,6 +743,7 @@
             document.body.appendChild(ripple);
             setTimeout(() => { if (ripple.parentNode) ripple.remove(); }, 800);
 
+            // Brief particle warp
             window.particleWarp(4);
             setTimeout(() => window.particleWarp(1), 600);
         };
